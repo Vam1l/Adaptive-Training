@@ -1,0 +1,143 @@
+/**
+ * Serialises the active workout into the state the Watch mirrors.
+ *
+ * The phone is the source of truth (README: "set data, routine, and metrics are
+ * pushed from the iPhone"). This builds the snapshot the Watch's `PhoneState`
+ * decodes — the current set, the set-progress dots, and the session totals.
+ *
+ * Pure — the only import is the shared look-ahead, so `node --test` can run it.
+ * The carry-forward rule is injected as `resolve` (see setCarry.ts), keeping
+ * this self-contained.
+ */
+import { locateNextSet } from './nextSet.ts';
+
+export type WatchSetDot = 'done' | 'active' | 'pending';
+
+type SetLike = {
+  id: string;
+  type: string;
+  weight: string;
+  reps: string;
+  prevWeight?: string;
+  prevReps?: string;
+  done: boolean;
+};
+type ExerciseLike = { name: string; equipment: string; rest: number; sets: readonly SetLike[] };
+
+type Resolve = (
+  sets: readonly SetLike[],
+  index: number,
+) => { weight: string; reps: string };
+
+export type WatchState = {
+  screen: 'session';
+  /**
+   * Epoch ms the *workout* began — the Watch's elapsed clock counts from this.
+   * Its own `HKWorkoutSession` starts whenever the Watch app got going, which
+   * can be seconds or minutes later, and counting from that made the two clocks
+   * disagree (#32). 0 when the phone doesn't know it yet; the Watch then keeps
+   * its session start rather than jumping to 1970.
+   */
+  startedAt: number;
+  routineName: string;
+  exerciseName: string;
+  equipment: string;
+  setNum: number;
+  setCount: number;
+  weight: string;
+  reps: string;
+  prevWeight: string;
+  prevReps: string;
+  setDots: WatchSetDot[];
+  resting: boolean;
+  restRemaining: number;
+  restTotal: number;
+  nextSetLabel: string;
+  volumeKg: number;
+  setsDone: number;
+  setsTotal: number;
+  /** The workout-exercise id and set id the Watch's Log Set acts on. */
+  currentExerciseId: string;
+  currentSetId: string;
+};
+
+/**
+ * Parse a typed weight. `decimal-pad` inserts the locale decimal separator, so a
+ * comma-locale keyboard yields "24,8" — `parseFloat` would stop at the comma and
+ * drop the fraction. Normalise first so the Watch's volume matches the phone's.
+ */
+const parseWeight = (s: string): number => parseFloat(String(s ?? '').replace(',', '.'));
+
+/** Session totals: volume + set counts over done, non-warmup sets. */
+function totals(exercises: readonly (ExerciseLike & { id: string })[]) {
+  let volumeKg = 0;
+  let setsDone = 0;
+  let setsTotal = 0;
+  for (const ex of exercises) {
+    for (const s of ex.sets) {
+      setsTotal += 1;
+      if (s.done && s.type !== 'warmup') {
+        volumeKg += (parseWeight(s.weight) || 0) * (parseFloat(s.reps) || 0);
+        setsDone += 1;
+      }
+    }
+  }
+  return { volumeKg: Math.round(volumeKg), setsDone, setsTotal };
+}
+
+/**
+ * The state to push, or null when there is no active set (every set done) — the
+ * caller then pushes a summary/idle state instead.
+ */
+export function buildWatchState(
+  exercises: readonly (ExerciseLike & { id: string })[],
+  routineName: string,
+  rest: { resting: boolean; remaining: number; total: number },
+  resolve: Resolve,
+  /** Epoch ms the workout began; omit (or null) before it is known. */
+  startedAt: number | null = null,
+): WatchState | null {
+  const current = locateNextSet(exercises);
+  if (!current) return null;
+
+  const { exercise: ex, setIndex: index } = current;
+  const set = ex.sets[index];
+  const filled = resolve(ex.sets, index);
+
+  const setDots: WatchSetDot[] = ex.sets.map((s, i) =>
+    s.done ? 'done' : i === index ? 'active' : 'pending',
+  );
+
+  const t = totals(exercises);
+
+  return {
+    screen: 'session',
+    startedAt: startedAt ?? 0,
+    routineName,
+    exerciseName: ex.name,
+    equipment: ex.equipment,
+    setNum: index + 1,
+    setCount: ex.sets.length,
+    weight: filled.weight,
+    reps: filled.reps,
+    prevWeight: set.prevWeight ?? '',
+    prevReps: set.prevReps ?? '',
+    setDots,
+    resting: rest.resting,
+    restRemaining: rest.remaining,
+    restTotal: rest.total,
+    // The Watch's Rest screen shows only this line, so it must describe the set
+    // the rest is *for* — which is the located set: during rest the set just
+    // completed is already `done`, so the look-ahead has moved on (crossing into
+    // the next exercise when the last set of one is finished). The old
+    // `Math.min(index + 2, ex.sets.length)` looked one set too far and then
+    // clamped inside the current exercise, so the final set of an exercise
+    // showed its own number back as "next".
+    nextSetLabel: `Next: Set ${index + 1} of ${ex.sets.length}`,
+    volumeKg: t.volumeKg,
+    setsDone: t.setsDone,
+    setsTotal: t.setsTotal,
+    currentExerciseId: ex.id,
+    currentSetId: set.id,
+  };
+}
