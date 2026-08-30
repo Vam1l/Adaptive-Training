@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Ischys",
+    "name": "Adaptive Training",
     "slug": "ischys",
     "scheme": "ischys",
     "version": "0.1.0",
@@ -12,13 +12,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.ischys.mobile",
-      "appleTeamId": "L3T79ZQ685",
       "buildNumber": "6",
       "infoPlist": {
         "NSSupportsLiveActivities": true,
         "ITSAppUsesNonExemptEncryption": false,
-        "NSHealthShareUsageDescription": "Ischys reads your heart rate during a workout when an Apple Watch is recording it.",
-        "NSHealthUpdateUsageDescription": "Ischys saves your finished workouts to Apple Health so they appear in Fitness."
+        "NSHealthShareUsageDescription": "Adaptive Training reads your heart rate during a workout when an Apple Watch is recording it.",
+        "NSHealthUpdateUsageDescription": "Adaptive Training saves your finished workouts to Apple Health so they appear in Fitness."
       },
       "entitlements": {
         "com.apple.security.application-groups": [
