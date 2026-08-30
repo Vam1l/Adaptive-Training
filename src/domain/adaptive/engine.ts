@@ -156,7 +156,11 @@ export function buildTrainingRecommendation(input: ExerciseProgressionInput): Tr
     targetRir: decision.targetRir,
     action: decision.action,
     rationaleCodes: decision.rationaleCodes,
-    inputsUsed: ['prescription', 'completedSets', 'previousPerformanceDropCount'],
+    inputsUsed: [
+      'prescription',
+      'completedSets',
+      ...(input.previousPerformanceDropCount !== undefined ? ['previousPerformanceDropCount'] : []),
+    ],
     version: ENGINE_VERSION,
     provenance: {
       engineVersion: ENGINE_VERSION,
