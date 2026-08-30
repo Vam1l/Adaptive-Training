@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Adaptive Training",
-    "slug": "ischys",
+    "slug": "adaptive-training",
     "scheme": "ischys",
     "version": "0.1.0",
     "orientation": "portrait",
